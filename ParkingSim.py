@@ -1,5 +1,4 @@
 import mesa
-import numpy as np
 from random import choice
 import uuid
 import time
