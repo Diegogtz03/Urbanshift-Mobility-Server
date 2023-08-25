@@ -1,18 +1,18 @@
-from flask import Flask
-from ParkingSim import ParkingLot
+import json
+from flask import Flask, render_template
+
+from CarPark import ParkingLot
 
 app = Flask(__name__)
 
-n = 10
-m = 10
 numVehicles = 10
-steps = 2
+parkingSim = ParkingLot(numVehicles)
 
-parkingSim = ParkingLot(n, m, numVehicles)
-
-@app.route('/api/request_step')
+@app.route('/')
 def index():
-  parkingSim.step()
-  return "I'm Alive!!"
+    parkingSim.step()
+    animation = parkingSim.generateAnim()
+    data = parkingSim.getData()
+    return render_template('index.html', animation=animation, data=data)
 
 app.run()
