@@ -8,10 +8,46 @@ from random import choice
 from random import randrange
 import numpy as np
 import uuid
+import time
+
+
+# ------------------------- Animación de Matplotlib -------------------------
+def getGrid(model): # Valeria
+  '''
+  Genera el tablero del modelo usado para animar la simulación.
+  Para el colormap, utiliza códigos de celdas correspondientes a:
+  0: Celda vacía
+  1: Luz de disponible
+  2: Vehículo
+  3: Árbol
+  4: Luz de reservado
+  5: Vehículo con reservación
+  '''
+  # Genera la matriz de ceros
+  grid = np.zeros((model.grid.width, model.grid.height))
+  # Recorre todas las celdas del tablero y obtiene el código de cada celda
+  for cell in model.grid.coord_iter():
+    content, (x, y) = cell
+    if (x, y) in model.treesList:
+      grid[x][y] = 3
+    # Verifica el tipo de agente con isinstance
+    for agent in content:
+      if isinstance(agent, LightAgent):
+        if agent.status == 0:
+          grid[x][y] = 1
+        elif agent.status == 1:
+          grid[x][y] = 4
+      elif isinstance(agent, VehicleAgent):
+        grid[x][y] = 2
+        if agent.hasReservation:
+          grid[x][y] = 5
+  return grid
 
 # --------------------------- Información en JSON ---------------------------
-def getData(model):
-  # Regresa información de los agentes para formar el JSON.
+def getData(model): # Diego
+  '''
+  Regresa información de los agentes para formar el JSON.
+  '''
   data = {
       "vehicleAgents": [],
       "lightAgents": []
@@ -26,6 +62,7 @@ def getData(model):
     lightAgentData = {}
 
     if isinstance(agent, VehicleAgent):
+      # Agregar la posicion y el id de cada vehiculo dentro del estacionamiento en la lista de agentes
       if agent.pos != None:
         (x, y) = agent.pos
         vehicleAgentData["index"] = agent.unique_id
@@ -33,10 +70,12 @@ def getData(model):
         vehicleAgentData["z"] = x
         vehicleAgents.append(vehicleAgentData)
     elif isinstance(agent, LightAgent):
+      # Agregar el estatus y el ide de cada luz del estacionamiento en la lista de agentes
       lightAgentData["index"] = agent.unique_id
       lightAgentData["status"] = agent.status
       lightAgents.append(lightAgentData)
 
+  # Agregar la listas de agentes al JSON final
   data["vehicleAgents"] = vehicleAgents
   data["lightAgents"] = lightAgents
 
@@ -65,8 +104,12 @@ class VehicleAgent(Agent):
     self.exitTarget = None
     # Indica si el vehículo inicia con reservación
     self.hasReservation = hasReservation
+    # Entrada en la que se coloca el vehículo si ya tiene una reservación
+    self.spawnPos = None
+    # Cuenta la cantidad de steps que le toma al vehículo estacionarse
+    self.parkCounter = 0
 
-  def getTarget(self):
+  def getTarget(self): # Valeria
     '''
     Si el vehículo todavía no tiene objetivo o si se ocupó en un step anterior:
     Calcula nuevo target, buscando el espacio libre más cercano.
@@ -120,7 +163,7 @@ class VehicleAgent(Agent):
     indicaciones de los carriles de estacionamiento.
     '''
     # Si el vehículo está estacionado
-    if self.isParked:
+    if self.isParked: # Goyo
       # Disminuye el tiempo restante estacionado
       self.parkedTime -= 1
       movedOut = False
@@ -161,7 +204,7 @@ class VehicleAgent(Agent):
           # Pausa su tiempo estacionado
           self.parkedTime += 1
 
-    else:
+    else: # Roberto
       # Obtiene el agente direccional de la celda
       agents = self.model.grid.get_cell_list_contents([self.pos])
       dirAgent = None
@@ -185,8 +228,10 @@ class VehicleAgent(Agent):
         elif dirAgent.canGoRight and self.isClear((x, y + 1)): self.model.grid.move_agent(self, (x, y + 1))
         elif dirAgent.canGoDown and self.isClear((x + 1, y)): self.model.grid.move_agent(self, (x + 1, y))
         elif dirAgent.canGoLeft and self.isClear((x, y - 1)): self.model.grid.move_agent(self, (x, y - 1))
+        self.parkCounter += 1
+
       # Tiene más de una dirección posible
-      else:
+      else: # Diego
         nextPos = (x, y)
 
         # X: ROWS || Y: COLUMNS
@@ -211,6 +256,7 @@ class VehicleAgent(Agent):
 
         if self.isClear(nextPos):
           self.model.grid.move_agent(self, nextPos)
+          self.parkCounter += 1
 
       (x, y) = self.pos
       # Si se está dirigiendo hacia un cajón de estacionamiento
@@ -220,7 +266,7 @@ class VehicleAgent(Agent):
           self.isParking = True
           self.lightTarget.status = 2
 
-  def isClear(self, nextPos):
+  def isClear(self, nextPos): # Diego
     '''
     Revisa que la próxima posición no esté ocupada por un vehículo.
     '''
@@ -230,7 +276,7 @@ class VehicleAgent(Agent):
         return False
     return True
 
-  def park(self):
+  def park(self): # Roberto
     '''
     Cambia el estado del vehículo a estacionado y detiene su movimiento.
     '''
@@ -244,8 +290,12 @@ class VehicleAgent(Agent):
     if (x == tX):
       self.isParked = True
       self.isParking = False
+      if self.hasReservation:
+        self.model.reserveParkData.append(self.parkCounter)
+      else:
+        self.model.vehicleParkData.append(self.parkCounter)
 
-  def step(self):
+  def step(self): # TBD
     '''
     Estados:
     0 --> Inicializado en una fila de vehículos a colocar
@@ -286,7 +336,7 @@ class VehicleAgent(Agent):
         return
 
 # -------------------------------- Agente Luz --------------------------------
-class LightAgent(Agent):
+class LightAgent(Agent): # Valeria
   '''
   Agente inteligente luz que indica el estado de disponibilidad del cajón de estacionamiento.
   '''
@@ -323,6 +373,7 @@ class LightAgent(Agent):
       if self.reservedTime == 0:
         self.status = 0
         self.reservationHolder.hasReservation = False
+        self.model.reservationsExpired += 1
 
     # Si un vehículo está ocupando el espacio, el estado marca ocupado
     agents = self.model.grid.get_cell_list_contents([self.pos])
@@ -330,7 +381,7 @@ class LightAgent(Agent):
       if isinstance(agent, VehicleAgent):
         self.status = 2
 
-class DirectionAgent(Agent):
+class DirectionAgent(Agent): # Roberto
   '''
   Agente estático de direccionamiento. Sirve como guía para las direcciones a las
   que se puede mover el agente vehículo dependiendo del sentido del carril.
@@ -384,11 +435,18 @@ class ParkingLot(Model):
     self.reservedSpaces = []
     # Lista de vehículos en fila para ser posicionados
     self.vehicleQueue = []
+    # Guarda información de cuánto tardan en estacionarse vehículos libres
+    self.vehicleParkData = []
+    # Guarda información de cuánto tardan en estacionarse vehículos con reservación
+    self.reserveParkData = []
+    # Cuenta la cantidad de reservaciones que se expiraron durante la simulación
+    self.reservationsExpired = 0
 
     # Crear agentes de luces indicadoras en cada cajón de estacionamiento
     idLights = 0
     numRow = [2, 3, 6, 7, 10, 11]
 
+    # Goyo
     for i in numRow:
       for j in range(2, 13, 1):
         if (j != 7):
@@ -452,7 +510,7 @@ class ParkingLot(Model):
       self.scheduler.add(vehicle)
       self.vehicleQueue.append(vehicle)
 
-  def placeParkedVehicles(self, numVehicles, parkedTime):
+  def placeParkedVehicles(self, numVehicles, parkedTime): # Valeria
     '''
     Coloca los vehículos estacionados al inicio de la simulación en espacios aleatorios.
     '''
@@ -471,7 +529,7 @@ class ParkingLot(Model):
       self.grid.place_agent(vehicle, pos)
       self.reservedSpaces.append(pos)
 
-  def spawnVehicles(self):
+  def spawnVehicles(self): # Diego
     '''
     Genera y coloca vehículos en movimiento en las 4 entradas del estacionamiento
     durante la simulación, con un porcentaje de spawn aleatorio.
@@ -483,7 +541,11 @@ class ParkingLot(Model):
       # Mientras existan vehículos en la fila, por cada entrada calcula el % random
       if random() < self.spawnPercentage and len(self.vehicleQueue) > 0:
         # Coloca el vehículo en la entrada y lo elimina de la fila
-        self.grid.place_agent(self.vehicleQueue.pop(), pos)
+        vehicle = self.vehicleQueue.pop()
+        if vehicle.hasReservation:
+          self.grid.place_agent(vehicle, vehicle.spawnPos)
+        else:
+          self.grid.place_agent(vehicle, pos)
         self.numActiveVehicles -= 1
         # Mientras existan vehículos por crear, sigue agregando a la fila
         if self.numActiveVehicles > len(self.vehicleQueue):
@@ -491,25 +553,49 @@ class ParkingLot(Model):
 
           # Decisión de reservación de espacio
           if random() < self.reservePercentage:
-            lightFound = False
-            i = 0
-            # Escoge un espacio aleatoriamente para reservar
-            while (i < 60 and not lightFound):
-              pos = choice(self.parkingSpaces)
-              agents = self.grid.get_cell_list_contents([pos])
+            # lightFound = False
+            # i = 0
+            # # Escoge un espacio aleatoriamente para reservar
+            # while (i < 60 and not lightFound):
+            #   pos = choice(self.parkingSpaces)
+            #   agents = self.grid.get_cell_list_contents([pos])
 
+            #   for agent in agents:
+            #     if isinstance(agent, LightAgent) and not lightFound:
+            #       # Si la luz está disponible
+            #       if agent.status == 0:
+            #         # Cambia el estado de la luz a reservado
+            #         agent.status = 1
+            #         vehicle.lightTarget = agent
+            #         vehicle.hasReservation = True
+            #         lightFound = True
+            #         agent.reservedTime = self.reservationHoldingTime
+            #         agent.reservationHolder = vehicle
+            #   i += 1
+
+            # Busca el cajón más cercano a la entrada donde se inicializa el vehículo
+            minDistance = float('inf')
+            vehicle.spawnPos = pos
+            (x, y) = pos
+            # Revisa todos los cajones de estacionamiento
+            for reservePos in self.parkingSpaces:
+              # Obtiene la luz indicadora del cajón
+              agents = self.grid.get_cell_list_contents([reservePos])
               for agent in agents:
-                if isinstance(agent, LightAgent) and not lightFound:
-                  # Si la luz está disponible
-                  if agent.status == 0:
-                    # Cambia el estado de la luz a reservado
-                    agent.status = 1
+                # Si la luz está disponible
+                if isinstance(agent, LightAgent) and agent.status == 0:
+                  # Obtiene las coordenadas de entrada al cajón libre más cercano
+                  distance = abs(x - agent.entryPoint[0]) + abs(y - agent.entryPoint[1])
+                  if (distance < minDistance):
+                    minDistance = distance
                     vehicle.lightTarget = agent
                     vehicle.hasReservation = True
-                    lightFound = True
-                    agent.reservedTime = self.reservationHoldingTime
-                    agent.reservationHolder = vehicle
-              i += 1
+
+            if vehicle.hasReservation:
+              # Cambia el estado de la luz a reservado
+              vehicle.lightTarget.status = 1
+              vehicle.lightTarget.reservedTime = self.reservationHoldingTime
+              vehicle.lightTarget.reservationHolder = vehicle
 
           self.scheduler.add(vehicle)
           self.vehicleQueue.append(vehicle)

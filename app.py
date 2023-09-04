@@ -41,4 +41,27 @@ def changeModel():
   return "OK"
 
 
+@app.route('/results')
+def getResults():
+  vehicleParkData = parkingSim.vehicleParkData
+  reserveParkData = parkingSim.reserveParkData
+  reservationsExpired = parkingSim.reservationsExpired
+
+  if vehicleParkData:
+    avgVehiclePark = sum(vehicleParkData) / len(vehicleParkData)
+  else:
+    avgVehiclePark = 0
+  if reserveParkData:
+    avgReservePark = sum(reserveParkData) / len(reserveParkData)
+  else:
+    avgReservePark = 0
+  
+  data = {
+    0: f'El promedio de steps que tardaron los vehiculos sin reservacion en estacionarse fue: {avgVehiclePark}',
+    1: f'El promedio de steps que tardaron los vehiculos con reservacion previa en estacionarse fue: {avgReservePark}',
+    2: f'La cantidad de reservaciones expiradas durante la simulacion fueron: {reservationsExpired}'
+  }
+
+  return data
+
 app.run()
