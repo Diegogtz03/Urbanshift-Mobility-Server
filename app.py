@@ -59,9 +59,9 @@ def getResults():
     avgReservePark = 0
   
   data = {
-    0: f'El promedio de steps que tardaron los vehiculos sin reservacion en estacionarse fue: {avgVehiclePark}',
-    1: f'El promedio de steps que tardaron los vehiculos con reservacion previa en estacionarse fue: {avgReservePark}',
-    2: f'La cantidad de reservaciones expiradas durante la simulacion fueron: {reservationsExpired}'
+    "first": f'El promedio de steps que tardaron los vehiculos sin reservacion en estacionarse fue: {avgVehiclePark}',
+    "second": f'El promedio de steps que tardaron los vehiculos con reservacion previa en estacionarse fue: {avgReservePark}',
+    "third": f'La cantidad de reservaciones expiradas durante la simulacion fueron: {reservationsExpired}'
   }
 
   return data
