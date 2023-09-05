@@ -8,9 +8,10 @@ numTempVehicles = 5
 numActiveVehicles = 50
 spawnPercentage = 0.2
 reservePercentage = 0.1
+badAgentPercentage = 0
 reservationHoldingTime = 15
 
-parkingSim = ParkingLot(numPermVehicles, numTempVehicles, numActiveVehicles, spawnPercentage, reservePercentage, reservationHoldingTime)
+parkingSim = ParkingLot(numPermVehicles, numTempVehicles, numActiveVehicles, spawnPercentage, reservePercentage, reservationHoldingTime, badAgentPercentage)
 
 @app.route('/step')
 def index():
@@ -23,7 +24,7 @@ def index():
 @app.route('/reset')
 def resetModel():
   global parkingSim
-  parkingSim = ParkingLot(numPermVehicles, numTempVehicles, numActiveVehicles, spawnPercentage, reservePercentage, reservationHoldingTime)
+  parkingSim = ParkingLot(numPermVehicles, numTempVehicles, numActiveVehicles, spawnPercentage, reservePercentage, reservationHoldingTime, badAgentPercentage)
   return "OK"
 
 @app.route('/change', methods=['POST'])
@@ -34,10 +35,11 @@ def changeModel():
   numActiveVehicles = int(request.form['numActiveVehicles'])
   spawnPercentage = float(request.form['spawnPercentage'])
   reservePercentage = float(request.form['reservePercentage'])
+  badAgentPercentage = float(request.form['badAgentPercentage'])
   reservationHoldingTime = int(request.form['reservationHoldingTime'])
 
   global parkingSim
-  parkingSim = ParkingLot(numPermVehicles, numTempVehicles, numActiveVehicles, spawnPercentage, reservePercentage, reservationHoldingTime)
+  parkingSim = ParkingLot(numPermVehicles, numTempVehicles, numActiveVehicles, spawnPercentage, reservePercentage, reservationHoldingTime, badAgentPercentage)
   return "OK"
 
 
